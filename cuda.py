@@ -136,6 +136,8 @@ class Analysis:
 
         for date in dates:
             for name in names:
+                if re.fullmatch(r'.*島.*', name):
+                    continue
                 day_count = 0
                 if datetime.fromisoformat(date[day_count]).hour == 0:
                     result_text += f"----------------------------------[地域, 一週間ごと]---------------------------------------\n"
@@ -198,10 +200,8 @@ class Analysis:
                     if snow_probability > 0.1:
                        snow_probability += 0.2  # 雪の確率が一定値以上ならばさらに上げる（適宜調整）
         
-                    result_text += f"トータルリッジ検出値: {total_ridge}\n"
                     result_text += f"雪の予測: {snow_predicted}\n"
                     result_text += f"snow_probability: {snow_probability}\n"
-                    result_text += f"リッジ検出結果 (CUDA with Numba):\n{result}\n"
                     result_text += f"天気予測：{predicted_weather}\n"
     
         return result_text
