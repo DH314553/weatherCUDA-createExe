@@ -144,7 +144,7 @@ class Analysis:
                 if re.fullmatch(r'.*島.*', name):
                     continue
                 day_count = 0
-                if datetime.fromisoformat(date[day_count]).hour == 0:
+                if datetime.fromisoformat(date[day_count]).hour == 0 and len(date) == 7:
                     result_text += f"----------------------------------[地域, 一週間ごと]---------------------------------------\n"
                     day_count += 1
                 else:
