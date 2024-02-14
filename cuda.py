@@ -1,5 +1,4 @@
 import json
-import random
 import urllib3
 import numba
 import numpy as np
@@ -129,6 +128,8 @@ class Analysis:
         selected_area = self.selected_area
     
         result_text = f"気象庁データ: {selected_area}\n"
+        result_text += f"今日の天気: {jma_data[0]['timeSeries'][0]['areas'][0]['weathers'][0]}\n"
+        result_text += f"今日の風: {jma_data[0]['timeSeries'][0]['areas'][0]['winds'][0]}\n"
     
         weather_matrix, names, dates = self.create_2d_array(jma_data)
 
@@ -153,12 +154,27 @@ class Analysis:
                 for i in range(len(date)):
                     # ISO 8601形式の日付と時刻を解析してPythonのdatetimeオブジェクトに変換
                     input_datetime = datetime.fromisoformat(date[i])
+                    weekly = input_datetime.weekday()
                     # 24時間制のフォーマットで日付と時刻を文字列に変換
-                    formatted_datetime = input_datetime.strftime("%Y年%m月%d日%H:%M")
+                    format_month = str(int(str(input_datetime.month))) + "月"
+                    format_hour = str(int(str(input_datetime.hour))) + "時"
+                    format_time = str(int(str(input_datetime.minute))) + "分"
+                    if weekly == 0:
+                        formatted_datetime = input_datetime.strftime("%Y年" + format_month + "%d日" + format_hour + format_time + "　月曜日")
+                    elif weekly == 1:
+                        formatted_datetime = input_datetime.strftime("%Y年" + format_month + "%d日" + format_hour + format_time + "　火曜日")
+                    elif weekly == 2:
+                        formatted_datetime = input_datetime.strftime("%Y年" + format_month + "%d日" + format_hour + format_time + "　水曜日")
+                    elif weekly == 3:
+                        formatted_datetime = input_datetime.strftime("%Y年" + format_month + "%d日" + format_hour + format_time + "　木曜日")
+                    elif weekly == 4:
+                        formatted_datetime = input_datetime.strftime("%Y年" + format_month + "%d日" + format_hour + format_time + "　金曜日")
+                    elif weekly == 5:
+                        formatted_datetime = input_datetime.strftime("%Y年" + format_month + "%d日" + format_hour + format_time + "　土曜日")
+                    else:
+                        formatted_datetime = input_datetime.strftime("%Y年" + format_month + "%d日" + format_hour + format_time + "　日曜日")    
                     result_text += f"日付: {formatted_datetime}\n"
                     result_text += f"地域名: {name}\n"
-                    result_text += f"今日の天気: {jma_data[0]['timeSeries'][0]['areas'][0]['weathers'][0]}\n"
-                    result_text += f"今日の風: {jma_data[0]['timeSeries'][0]['areas'][0]['winds'][0]}\n"
     
                     # 天気コードからなる2D配列を作成
                     code = weather_matrix
@@ -175,9 +191,19 @@ class Analysis:
                     
                     # 降水確率が高い場合に闘値を下げる
                     jma_rainfalls = self.get_precipitation_probability(jma_data)
-    
-                    if int(jma_rainfalls[i]) >= 10.0:
-                        threshold -= 0.3  # 平均降水量が10.0mm以上の場合、闘値を0.3減少させる
+
+                    # トータルリッジが2以上の場合
+                    if total_ridge >= 2:
+                        # 降水確率を50%以上に設定
+                        jma_rainfalls[i] = min(max(total_ridge * 10, 50), 100)
+                    # トータルリッジが0の場合
+                    elif total_ridge == 0:
+                        # 降水確率を0%に設定
+                        jma_rainfalls[i] = 0
+                    # トータルリッジが1未満の場合
+                    else:
+                        # 降水確率をトータルリッジの値に応じて設定
+                        jma_rainfalls[i] = min(total_ridge * 10, 100)
                     
     
                     # total_ridge = np.sum(result[0])
@@ -204,9 +230,10 @@ class Analysis:
                     # 修正：snow_probabilityを考慮して雪の確率を上げる
                     if snow_probability > 0.1:
                        snow_probability += 0.2  # 雪の確率が一定値以上ならばさらに上げる（適宜調整）
+                    elif snow_predicted:
+                       snow_probability += 0.2  
         
-                    result_text += f"雪の予測: {snow_predicted}\n"
-                    result_text += f"snow_probability: {snow_probability}\n"
+                    result_text += f"降水確率: {jma_rainfalls[i]}%\n"
                     result_text += f"天気予測：{predicted_weather}\n"
     
         return result_text
@@ -375,20 +402,13 @@ class Analysis:
         if snow_predicted:
             predicted_weather = "雪"
         else:
-            # 雨、晴れ、曇りの確率を計算
-            rain_probability = 1.0 / (1.0 + np.exp(-total_ridge))
-            sunny_probability = 1.0 / (1.0 + np.exp(total_ridge))
-            cloudy_probability = 1.0 - rain_probability - sunny_probability
-    
-            # 雨、晴れ、曇りの確率に基づいて天気を予測
-            random_value = random.uniform(0, 1)
-            if total_ridge == 0 or random_value < sunny_probability:
+            if total_ridge == 0 or precipitation_probability <= 20:
                 predicted_weather = "晴れ"
                 snow_probability = 0.0
-            elif total_ridge == 1 or random_value < sunny_probability + cloudy_probability:
+            elif total_ridge == 1 or 20 <= precipitation_probability <= 40:
                 predicted_weather = "曇り"
                 snow_probability = 0.0
-            elif total_ridge >= 2:
+            elif total_ridge >= 2 or precipitation_probability >= 40:
                 predicted_weather = "雨"
                 snow_probability = 0.0
     
